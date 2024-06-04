@@ -2,6 +2,10 @@ package prcomment
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/bobg/errors"
 	"github.com/google/go-github/v62/github"
@@ -66,4 +70,29 @@ func (c Commenter) AddOrUpdate(ctx context.Context, owner, reponame string, prnu
 
 	_, _, err = c.issues.CreateComment(ctx, owner, reponame, prnum, issueComment)
 	return errors.Wrap(err, "adding PR comment")
+}
+
+// ParsePR parses a GitHub pull-request URL,
+// which should have the form http(s)://HOST/OWNER/REPO/pull/NUMBER.
+func ParsePR(pr string) (host, owner, reponame string, prnum int, err error) {
+	u, err := url.Parse(pr)
+	if err != nil {
+		err = errors.Wrap(err, "parsing GitHub pull-request URL")
+		return
+	}
+	path := strings.TrimLeft(u.Path, "/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 4 {
+		err = fmt.Errorf("too few path elements in pull-request URL (got %d, want 4)", len(parts))
+		return
+	}
+	if parts[2] != "pull" {
+		err = fmt.Errorf("pull-request URL not in expected format")
+		return
+	}
+	host = u.Host
+	owner, reponame = parts[0], parts[1]
+	prnum, err = strconv.Atoi(parts[3])
+	err = errors.Wrap(err, "parsing number from GitHub pull-request URL")
+	return
 }
